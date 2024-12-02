@@ -9,7 +9,7 @@ from src.models.base_model import BaseModel
 
 class Autoencoder(BaseModel):
     def __init__(self, hparams):
-        super(Autoencoder, self).__init__()
+        super(Autoencoder, self).__init__(hparams)
         self.save_hyperparameters(hparams)
         # Define the encoder
         self.encoder = nn.Sequential(
