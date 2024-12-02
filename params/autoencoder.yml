@@ -1,4 +1,9 @@
+run_parameters:
+  experiment_name: "autoencoder-64"
 hyperparameters:
   lr: 1e-3
   epochs: 10
   latent_dim: 64
+training:
+  accelerator: "gpu"
+  devices: 1
