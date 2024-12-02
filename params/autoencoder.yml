@@ -1,0 +1,4 @@
+hyperparameters:
+  lr: 1e-3
+  epochs: 10
+  latent_dim: 64
