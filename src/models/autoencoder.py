@@ -2,10 +2,12 @@ import torch
 import torch.nn as nn
 import torchvision
 import wandb
-from pytorch_lightning import LightningModule
-from pytorch_lightning.loggers import WandbLogger
 
-class Autoencoder(LightningModule):
+from pytorch_lightning.loggers import WandbLogger
+from src.models.base_model import BaseModel
+
+
+class Autoencoder(BaseModel):
     def __init__(self, hparams):
         super(Autoencoder, self).__init__()
         self.save_hyperparameters(hparams)

@@ -1,6 +1,7 @@
 import torch
 import pytorch_lightning as pl
 
+
 class BaseModel(pl.LightningModule):
     def __init__(self, hparams):
         super(BaseModel, self).__init__()
