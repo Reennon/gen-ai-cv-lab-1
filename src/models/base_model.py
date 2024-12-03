@@ -36,7 +36,7 @@ class BaseModel(pl.LightningModule):
         if scheduler_config and scheduler_config['type'] is not None:
             scheduler_type = scheduler_config['type']
             scheduler_params = scheduler_config['params']
-            scheduler = getattr(self.hparams.lr_scheduler, scheduler_type)(optimizer, **scheduler_params)
+            scheduler = getattr(self.hparams.lr, scheduler_type)(optimizer, **scheduler_params)
             return {
                 'optimizer': optimizer,
                 'lr_scheduler': {
