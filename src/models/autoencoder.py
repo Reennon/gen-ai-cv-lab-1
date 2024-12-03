@@ -58,3 +58,7 @@ class Autoencoder(BaseModel):
         # Store outputs for later use
         self.validation_outputs.append((x, x_hat))
         return val_loss
+
+    def on_validation_epoch_end(self):
+        super().on_validation_epoch_end()  # Call the BaseModel's method if overridden
+

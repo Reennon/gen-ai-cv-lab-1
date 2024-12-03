@@ -82,3 +82,7 @@ class VAE(BaseModel):
         self.log('val_kld_loss', kld_loss)
         self.validation_outputs.append((x, x_hat))
         return val_loss
+
+    def on_validation_epoch_end(self):
+        super().on_validation_epoch_end()  # Call the BaseModel's method if overridden
+
