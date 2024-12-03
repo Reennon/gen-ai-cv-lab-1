@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torchvision
+import wandb
 from pytorch_lightning import LightningModule
 from pytorch_lightning.loggers import WandbLogger
 
@@ -11,6 +12,8 @@ class BaseModel(pl.LightningModule):
     def __init__(self, hparams):
         super(BaseModel, self).__init__()
         self.save_hyperparameters(hparams)
+        # Initialize a list to store validation outputs
+        self.validation_outputs = []
 
     def forward(self, x):
         # Define the forward pass

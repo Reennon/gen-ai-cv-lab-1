@@ -80,4 +80,5 @@ class VAE(BaseModel):
         self.log('val_loss', val_loss)
         self.log('val_recon_loss', recon_loss)
         self.log('val_kld_loss', kld_loss)
+        self.validation_outputs.append((x, x_hat))
         return val_loss

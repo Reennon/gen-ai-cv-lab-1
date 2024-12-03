@@ -36,9 +36,6 @@ class Autoencoder(BaseModel):
             nn.Sigmoid()  # Scale output to [0, 1]
         )
 
-        # Initialize a list to store validation outputs
-        self.validation_outputs = []
-
     def forward(self, x):
         # Pass through encoder
         z = self.encoder(x)
