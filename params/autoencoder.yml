@@ -7,7 +7,7 @@ hyperparameters:
   scheduler:
     type: PolynomialLR  # Options: PolynomialLR, ReduceLROnPlateau, None
     params:
-      total_iters: 100
+      total_iters: 20
       power: 1.0
   optimizer:
     type: Adam

@@ -11,8 +11,6 @@ class BaseModel(pl.LightningModule):
     def __init__(self, hparams):
         super(BaseModel, self).__init__()
         self.save_hyperparameters(hparams)
-        # Define your model architecture here
-        # For now, we'll leave it abstract
 
     def forward(self, x):
         # Define the forward pass
@@ -20,11 +18,26 @@ class BaseModel(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         # Implement the training logic
-        pass
+        x, y = batch
+        y_hat = self.forward(x)
+        loss = nn.functional.mse_loss(y_hat, y)  # Example loss calculation
+        self.log('train_loss', loss)
+
+        # Log learning rate
+        opt = self.optimizers()
+        current_lr = opt.param_groups[0]['lr']
+        self.log('learning_rate', current_lr, on_step=True, on_epoch=True)
+
+        return loss
 
     def validation_step(self, batch, batch_idx):
         # Implement the validation logic
-        pass
+        x, y = batch
+        y_hat = self.forward(x)
+        val_loss = nn.functional.mse_loss(y_hat, y)  # Example validation loss calculation
+        self.log('val_loss', val_loss)
+
+        return val_loss
 
     def configure_optimizers(self):
         optimizer_config = self.hparams['optimizer']
@@ -47,3 +60,4 @@ class BaseModel(pl.LightningModule):
             }
         else:
             return optimizer
+
