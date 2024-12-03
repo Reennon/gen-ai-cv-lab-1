@@ -46,7 +46,8 @@ def train_model(model_class, params, train_loader, val_loader, wandb_project_nam
                 save_top_k=3,
                 mode='min'
             )
-        ]
+        ],
+        **params.additional_trainer_params
     )
 
     # Start training
