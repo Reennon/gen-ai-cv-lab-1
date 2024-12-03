@@ -30,13 +30,13 @@ class BaseModel(pl.LightningModule):
         optimizer_config = self.hparams['optimizer']
         optimizer_type = optimizer_config['type']
         optimizer_params = {k: v for k, v in optimizer_config.items() if k != 'type'}
-        optimizer = getattr(optim, optimizer_type)(self.parameters(), **optimizer_params)
+        optimizer = getattr(optim, optimizer_type)(self.parameters(), **optimizer_params | {"lr": self.hparams['lr']})
 
         scheduler_config = self.hparams.get('scheduler', None)
         if scheduler_config and scheduler_config['type'] is not None:
             scheduler_type = scheduler_config['type']
             scheduler_params = scheduler_config['params']
-            scheduler = getattr(self.hparams.lr, scheduler_type)(optimizer, **scheduler_params)
+            scheduler = getattr(optim.lr_scheduler, scheduler_type)(optimizer, **scheduler_params)
             return {
                 'optimizer': optimizer,
                 'lr_scheduler': {
