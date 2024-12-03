@@ -1,9 +1,14 @@
 run_parameters:
-  experiment_name: "autoencoder-64-lower-lr-3e-5"
+  experiment_name: "autoencoder-64-scheduler"
 hyperparameters:
-  lr: 3e-5
+  lr: 5e-3
   epochs: 20
   latent_dim: 64
 training:
   accelerator: "gpu"
   devices: 1
+scheduler:
+  type: PolynomialLR  # Options: PolynomialLR, ReduceLROnPlateau, None
+  params:
+    total_iters: 100
+    power: 1.0

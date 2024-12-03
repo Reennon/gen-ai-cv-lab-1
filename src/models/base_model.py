@@ -1,5 +1,10 @@
-import torch
 import pytorch_lightning as pl
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torchvision
+from pytorch_lightning import LightningModule
+from pytorch_lightning.loggers import WandbLogger
 
 
 class BaseModel(pl.LightningModule):
@@ -22,6 +27,23 @@ class BaseModel(pl.LightningModule):
         pass
 
     def configure_optimizers(self):
-        # Set up the optimizer and learning rate scheduler
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams['lr'])
-        return optimizer
+        optimizer_config = self.hparams['optimizer']
+        optimizer_type = optimizer_config['type']
+        optimizer_params = {k: v for k, v in optimizer_config.items() if k != 'type'}
+        optimizer = getattr(optim, optimizer_type)(self.parameters(), **optimizer_params)
+
+        scheduler_config = self.hparams.get('scheduler', None)
+        if scheduler_config and scheduler_config['type'] is not None:
+            scheduler_type = scheduler_config['type']
+            scheduler_params = scheduler_config['params']
+            scheduler = getattr(optim.lr_scheduler, scheduler_type)(optimizer, **scheduler_params)
+            return {
+                'optimizer': optimizer,
+                'lr_scheduler': {
+                    'scheduler': scheduler,
+                    'interval': 'epoch',  # or 'step'
+                    'monitor': 'val_loss'  # for schedulers like ReduceLROnPlateau
+                }
+            }
+        else:
+            return optimizer
