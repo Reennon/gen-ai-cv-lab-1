@@ -61,31 +61,3 @@ class Autoencoder(BaseModel):
         # Store outputs for later use
         self.validation_outputs.append((x, x_hat))
         return val_loss
-
-    def on_validation_epoch_end(self):
-        """
-        Hook to log reconstructed images at the end of the validation epoch.
-        Logs the original and reconstructed images as a grid to Weights & Biases.
-        """
-        # Ensure the logger is an instance of WandbLogger
-        if isinstance(self.logger, WandbLogger):
-            # Select a few samples from the validation outputs
-            outputs = self.validation_outputs[:8]  # Take the first 8 batches
-            original_images, reconstructed_images = zip(*outputs)
-
-            # Combine images into a single tensor
-            original_images = torch.cat(original_images, dim=0)
-            reconstructed_images = torch.cat(reconstructed_images, dim=0)
-
-            # Create grids of original and reconstructed images
-            original_grid = torchvision.utils.make_grid(original_images.cpu(), nrow=4, normalize=True)
-            reconstructed_grid = torchvision.utils.make_grid(reconstructed_images.cpu(), nrow=4, normalize=True)
-
-            # Log the images to W&B
-            self.logger.experiment.log({
-                "Original Images": [wandb.Image(original_grid, caption='Original Images')],
-                "Reconstructed Images": [wandb.Image(reconstructed_grid, caption='Reconstructed Images')]
-            })
-
-        # Clear the stored validation outputs
-        self.validation_outputs.clear()
