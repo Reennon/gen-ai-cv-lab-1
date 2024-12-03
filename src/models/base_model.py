@@ -16,17 +16,18 @@ class BaseModel(pl.LightningModule):
         # Define the forward pass
         pass
 
+    def on_train_epoch_start(self):
+        # Log learning rate
+        opt = self.optimizers()
+        current_lr = opt.param_groups[0]['lr']
+        self.log('learning_rate', current_lr, on_step=False, on_epoch=True)
+
     def training_step(self, batch, batch_idx):
         # Implement the training logic
         x, y = batch
         y_hat = self.forward(x)
         loss = nn.functional.mse_loss(y_hat, y)  # Example loss calculation
         self.log('train_loss', loss)
-
-        # Log learning rate
-        opt = self.optimizers()
-        current_lr = opt.param_groups[0]['lr']
-        self.log('learning_rate', current_lr, on_step=True, on_epoch=True)
 
         return loss
 
