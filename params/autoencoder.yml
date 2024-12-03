@@ -4,11 +4,14 @@ hyperparameters:
   lr: 5e-3
   epochs: 20
   latent_dim: 64
+  scheduler:
+    type: PolynomialLR  # Options: PolynomialLR, ReduceLROnPlateau, None
+    params:
+      total_iters: 100
+      power: 1.0
+  optimizer:
+    type: Adam
+    lr: 0.001
 training:
   accelerator: "gpu"
   devices: 1
-scheduler:
-  type: PolynomialLR  # Options: PolynomialLR, ReduceLROnPlateau, None
-  params:
-    total_iters: 100
-    power: 1.0
