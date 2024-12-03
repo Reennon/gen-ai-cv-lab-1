@@ -11,7 +11,6 @@ hyperparameters:
       power: 1.0
   optimizer:
     type: Adam
-    lr: 0.001
 training:
   accelerator: "gpu"
   devices: 1
