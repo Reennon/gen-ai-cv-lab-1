@@ -1,6 +1,7 @@
 from typing import Optional
 
 import pytorch_lightning as pl
+import wandb
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import WandbLogger
 import torch
@@ -50,5 +51,7 @@ def train_model(model_class, params, train_loader, val_loader, wandb_project_nam
 
     # Start training
     trainer.fit(model, train_loader, val_loader)
+
+    wandb.finish()
 
     return model

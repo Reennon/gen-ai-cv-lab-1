@@ -1,8 +1,8 @@
 run_parameters:
-  experiment_name: "autoencoder-64"
+  experiment_name: "autoencoder-64-lower-lr-3e-5"
 hyperparameters:
-  lr: 1e-3
-  epochs: 10
+  lr: 3e-5
+  epochs: 20
   latent_dim: 64
 training:
   accelerator: "gpu"
