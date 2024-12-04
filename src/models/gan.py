@@ -47,7 +47,7 @@ class Discriminator(nn.Module):
 
 
 
-class GAN(pl.LightningModule):
+class GAN(BaseModel):
     def __init__(self, hparams):
         super(GAN, self).__init__(hparams)
         self.generator = Generator(hparams["latent_dim"])
