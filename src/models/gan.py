@@ -48,12 +48,10 @@ class Discriminator(nn.Module):
 
 
 class GAN(pl.LightningModule):
-    def __init__(self, latent_dim, lr=0.0002):
-        super(GAN, self).__init__()
-        self.latent_dim = latent_dim
-        self.generator = Generator(latent_dim)
+    def __init__(self, hparams):
+        super(GAN, self).__init__(hparams)
+        self.generator = Generator(hparams["latent_dim"])
         self.discriminator = Discriminator()
-        self.lr = lr
         self.automatic_optimization = False  # Disable automatic optimization
 
     def forward(self, z):
@@ -65,7 +63,7 @@ class GAN(pl.LightningModule):
         device = real_imgs.device
 
         # Sample random noise for the generator
-        z = torch.randn(batch_size, self.latent_dim, device=device)
+        z = torch.randn(batch_size, self.hparams["latent_dim"], device=device)
 
         # Get optimizers
         g_opt, d_opt = self.optimizers()
@@ -98,6 +96,6 @@ class GAN(pl.LightningModule):
         self.log('g_loss', g_loss, prog_bar=True)
 
     def configure_optimizers(self):
-        g_opt = optim.Adam(self.generator.parameters(), lr=self.lr, betas=(0.5, 0.999))
-        d_opt = optim.Adam(self.discriminator.parameters(), lr=self.lr, betas=(0.5, 0.999))
+        g_opt = optim.Adam(self.generator.parameters(), lr=self.hparams["lr"], betas=(0.5, 0.999))
+        d_opt = optim.Adam(self.discriminator.parameters(), lr=self.hparams["lr"], betas=(0.5, 0.999))
         return [g_opt, d_opt]
