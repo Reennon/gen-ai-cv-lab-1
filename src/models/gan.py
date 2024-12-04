@@ -48,49 +48,56 @@ class Discriminator(nn.Module):
 
 
 class GAN(pl.LightningModule):
-    def __init__(self, hparams):
+    def __init__(self, latent_dim, lr=0.0002):
         super(GAN, self).__init__()
-        print(f"hparams: {hparams}")
-        # Extract hyperparameters from hparams
-        self.latent_dim = hparams["latent_dim"]
-        self.lr = hparams["lr"]
-
-        # Initialize generator and discriminator
-        self.generator = Generator(self.latent_dim)
+        self.latent_dim = latent_dim
+        self.generator = Generator(latent_dim)
         self.discriminator = Discriminator()
+        self.lr = lr
+        self.automatic_optimization = False  # Disable automatic optimization
 
     def forward(self, z):
         return self.generator(z)
 
+    def training_step(self, batch, batch_idx):
+        real_imgs, _ = batch
+        batch_size = real_imgs.size(0)
+        device = real_imgs.device
+
+        # Sample random noise for the generator
+        z = torch.randn(batch_size, self.latent_dim, device=device)
+
+        # Get optimizers
+        g_opt, d_opt = self.optimizers()
+
+        # Train Discriminator
+        self.toggle_optimizer(d_opt)
+        d_opt.zero_grad()
+        real_preds = self.discriminator(real_imgs)
+        real_loss = nn.BCELoss()(real_preds, torch.ones_like(real_preds))
+        fake_imgs = self(z).detach()
+        fake_preds = self.discriminator(fake_imgs)
+        fake_loss = nn.BCELoss()(fake_preds, torch.zeros_like(fake_preds))
+        d_loss = (real_loss + fake_loss) / 2
+        self.manual_backward(d_loss)
+        d_opt.step()
+        self.untoggle_optimizer(d_opt)
+
+        # Train Generator
+        self.toggle_optimizer(g_opt)
+        g_opt.zero_grad()
+        fake_imgs = self(z)
+        fake_preds = self.discriminator(fake_imgs)
+        g_loss = nn.BCELoss()(fake_preds, torch.ones_like(fake_preds))
+        self.manual_backward(g_loss)
+        g_opt.step()
+        self.untoggle_optimizer(g_opt)
+
+        # Logging
+        self.log('d_loss', d_loss, prog_bar=True)
+        self.log('g_loss', g_loss, prog_bar=True)
+
     def configure_optimizers(self):
         g_opt = optim.Adam(self.generator.parameters(), lr=self.lr, betas=(0.5, 0.999))
         d_opt = optim.Adam(self.discriminator.parameters(), lr=self.lr, betas=(0.5, 0.999))
-        return [g_opt, d_opt], []
-
-    def training_step(self, batch, batch_idx, optimizer_idx):
-        real_imgs, _ = batch
-
-        # Sample random noise for the generator
-        batch_size = real_imgs.size(0)
-        z = torch.randn(batch_size, self.latent_dim, device=self.device)
-
-        # Generator step
-        if optimizer_idx == 0:
-            fake_imgs = self(z)
-            fake_preds = self.discriminator(fake_imgs)
-            g_loss = nn.BCELoss()(fake_preds, torch.ones_like(fake_preds))
-            self.log('g_loss', g_loss, prog_bar=True)
-            return g_loss
-
-        # Discriminator step
-        if optimizer_idx == 1:
-            real_preds = self.discriminator(real_imgs)
-            real_loss = nn.BCELoss()(real_preds, torch.ones_like(real_preds))
-
-            fake_imgs = self(z).detach()
-            fake_preds = self.discriminator(fake_imgs)
-            fake_loss = nn.BCELoss()(fake_preds, torch.zeros_like(fake_preds))
-
-            d_loss = (real_loss + fake_loss) / 2
-            self.log('d_loss', d_loss, prog_bar=True)
-            return d_loss
+        return [g_opt, d_opt]
