@@ -48,15 +48,24 @@ class Discriminator(nn.Module):
 
 
 class GAN(pl.LightningModule):
-    def __init__(self, latent_dim, lr=0.0002):
+    def __init__(self, hparams):
         super(GAN, self).__init__()
-        self.latent_dim = latent_dim
-        self.generator = Generator(latent_dim)
+        print(f"hparams: {hparams}")
+        # Extract hyperparameters from hparams
+        self.latent_dim = hparams["latent_dim"]
+        self.lr = hparams["lr"]
+
+        # Initialize generator and discriminator
+        self.generator = Generator(self.latent_dim)
         self.discriminator = Discriminator()
-        self.lr = lr
 
     def forward(self, z):
         return self.generator(z)
+
+    def configure_optimizers(self):
+        g_opt = optim.Adam(self.generator.parameters(), lr=self.lr, betas=(0.5, 0.999))
+        d_opt = optim.Adam(self.discriminator.parameters(), lr=self.lr, betas=(0.5, 0.999))
+        return [g_opt, d_opt], []
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         real_imgs, _ = batch
@@ -85,8 +94,3 @@ class GAN(pl.LightningModule):
             d_loss = (real_loss + fake_loss) / 2
             self.log('d_loss', d_loss, prog_bar=True)
             return d_loss
-
-    def configure_optimizers(self):
-        g_opt = optim.Adam(self.generator.parameters(), lr=self.lr, betas=(0.5, 0.999))
-        d_opt = optim.Adam(self.discriminator.parameters(), lr=self.lr, betas=(0.5, 0.999))
-        return [g_opt, d_opt], []
