@@ -37,6 +37,8 @@ class Discriminator(nn.Module):
 class GAN(BaseModel):
     def __init__(self, hparams):
         super(GAN, self).__init__(hparams)
+        self.save_hyperparameters(hparams)
+
         self.generator = Generator(hparams["latent_dim"])
         self.discriminator = Discriminator()
         self.automatic_optimization = False  # Disable automatic optimization

@@ -1,9 +1,5 @@
-import torch
 import torch.nn as nn
-import torchvision
-import wandb
 
-from pytorch_lightning.loggers import WandbLogger
 from src.models.base_model import BaseModel
 
 
