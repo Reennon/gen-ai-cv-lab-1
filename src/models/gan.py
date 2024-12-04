@@ -8,19 +8,41 @@ from src.models.base_model import BaseModel
 class Generator(nn.Module):
     def __init__(self, latent_dim):
         super(Generator, self).__init__()
-        self.model = nn.Sequential(
-            nn.Linear(latent_dim, 128),
+        self.latent_dim = latent_dim
+
+        # Fully connected to project latent vector to a starting size
+        self.fc = nn.Sequential(
+            nn.Linear(latent_dim, 256 * 8 * 8),  # Project to 256 feature maps of size 8x8
+            nn.ReLU()
+        )
+
+        # Transposed convolutions to upscale to 3x32x32
+        self.upscale = nn.Sequential(
+            nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1),  # 8x8 -> 16x16
+            nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.Linear(128, 3 * 32 * 32),  # Match CIFAR-10 output dimensions
-            nn.Tanh()  # Scale output to [-1, 1]
+
+            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),  # 16x16 -> 32x32
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+
+            nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1),  # 32x32 -> 3x32x32
+            nn.Tanh()  # Output scaled to [-1, 1]
         )
 
     def forward(self, z):
-        print(f"Input shape to Generator: {z.shape}")  # Should be [batch_size, latent_dim]
-        out = self.model(z)
-        print(f"Output shape from Generator before reshape: {out.shape}")  # Should be [batch_size, 3*32*32]
-        img = out.view(z.size(0), 3, 32, 32)
-        print(f"Output shape from Generator after reshape: {img.shape}")  # Should be [batch_size, 3, 32, 32]
+        # Ensure input is the correct shape
+        assert z.shape[1] == self.latent_dim, f"Expected latent vector shape: [batch_size, {self.latent_dim}]"
+        print(f"Input shape to Generator: {z.shape}")  # [batch_size, latent_dim]
+
+        # Fully connected layer
+        out = self.fc(z)  # Shape: [batch_size, 256 * 8 * 8]
+        out = out.view(out.size(0), 256, 8, 8)  # Reshape to [batch_size, 256, 8, 8]
+        print(f"Shape after fc and reshape: {out.shape}")
+
+        # Upscale to target image size
+        img = self.upscale(out)  # Shape: [batch_size, 3, 32, 32]
+        print(f"Output shape from Generator: {img.shape}")
         return img
 
 
