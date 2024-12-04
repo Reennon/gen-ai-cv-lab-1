@@ -1,87 +1,80 @@
 import torch
 import torch.nn as nn
+import pytorch_lightning as pl
 import torch.optim as optim
-import torchvision
-import wandb
 
-from src.models.base_model import BaseModel
-
-
-class GAN(BaseModel):
-    def __init__(self, hparams):
-        super(GAN, self).__init__(hparams)
-        self.save_hyperparameters(hparams)
-
-        # Generator
-        self.generator = nn.Sequential(
-            nn.Linear(self.hparams['latent_dim'], 256),
+class Generator(nn.Module):
+    def __init__(self, latent_dim):
+        super(Generator, self).__init__()
+        self.model = nn.Sequential(
+            nn.Linear(latent_dim, 128),
             nn.ReLU(),
-            nn.Linear(256, 512),
-            nn.ReLU(),
-            nn.Linear(512, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 3 * 32 * 32),  # Assuming output is CIFAR-10 images
-            nn.Tanh(),  # Scale output to [-1, 1]
+            nn.Linear(128, 784),
+            nn.Tanh()
         )
-
-        # Discriminator
-        self.discriminator = nn.Sequential(
-            nn.Linear(3 * 32 * 32, 1024),
-            nn.LeakyReLU(0.2),
-            nn.Linear(1024, 512),
-            nn.LeakyReLU(0.2),
-            nn.Linear(512, 256),
-            nn.LeakyReLU(0.2),
-            nn.Linear(256, 1),
-            nn.Sigmoid(),  # Output a probability
-        )
-
-        self.criterion = nn.BCELoss()
 
     def forward(self, z):
-        """Generate images from latent space."""
+        return self.model(z).view(z.size(0), 1, 28, 28)
+
+class Discriminator(nn.Module):
+    def __init__(self):
+        super(Discriminator, self).__init__()
+        self.model = nn.Sequential(
+            nn.Linear(784, 128),
+            nn.LeakyReLU(0.2),
+            nn.Linear(128, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, img):
+        img_flat = img.view(img.size(0), -1)
+        return self.model(img_flat)
+
+
+class GAN(pl.LightningModule):
+    def __init__(self, latent_dim, lr):
+        super(GAN, self).__init__()
+        self.save_hyperparameters()
+        self.generator = Generator(latent_dim)
+        self.discriminator = Discriminator()
+        self.automatic_optimization = False
+
+    def forward(self, z):
         return self.generator(z)
 
-    def training_step(self, batch, batch_idx, optimizer_idx):
+    def training_step(self, batch, batch_idx):
         real_imgs, _ = batch
-        real_imgs = real_imgs.view(real_imgs.size(0), -1)  # Flatten images
+        batch_size = real_imgs.size(0)
+        z = torch.randn(batch_size, self.hparams.latent_dim, device=self.device)
 
-        # Labels
-        real_labels = torch.ones(real_imgs.size(0), 1, device=self.device)
-        fake_labels = torch.zeros(real_imgs.size(0), 1, device=self.device)
+        # Train Discriminator
+        d_opt = self.optimizers()[1]
+        d_opt.zero_grad()
+        real_preds = self.discriminator(real_imgs)
+        real_loss = nn.BCELoss()(real_preds, torch.ones_like(real_preds))
+        fake_imgs = self(z).detach()
+        fake_preds = self.discriminator(fake_imgs)
+        fake_loss = nn.BCELoss()(fake_preds, torch.zeros_like(fake_preds))
+        d_loss = (real_loss + fake_loss) / 2
+        self.manual_backward(d_loss)
+        d_opt.step()
 
-        # Generator optimization
-        if optimizer_idx == 0:
-            z = torch.randn(real_imgs.size(0), self.hparams['latent_dim'], device=self.device)
-            fake_imgs = self(z)
-            g_loss = self.criterion(self.discriminator(fake_imgs), real_labels)
-            self.log('g_loss', g_loss)
-            return g_loss
+        # Train Generator
+        g_opt = self.optimizers()[0]
+        g_opt.zero_grad()
+        fake_imgs = self(z)
+        fake_preds = self.discriminator(fake_imgs)
+        g_loss = nn.BCELoss()(fake_preds, torch.ones_like(fake_preds))
+        self.manual_backward(g_loss)
+        g_opt.step()
 
-        # Discriminator optimization
-        if optimizer_idx == 1:
-            # Discriminator loss on real images
-            real_loss = self.criterion(self.discriminator(real_imgs), real_labels)
-
-            # Discriminator loss on fake images
-            z = torch.randn(real_imgs.size(0), self.hparams['latent_dim'], device=self.device)
-            fake_imgs = self(z).detach()
-            fake_loss = self.criterion(self.discriminator(fake_imgs), fake_labels)
-
-            d_loss = (real_loss + fake_loss) / 2
-            self.log('d_loss', d_loss)
-            return d_loss
+        # Logging
+        self.log('d_loss', d_loss, prog_bar=True)
+        self.log('g_loss', g_loss, prog_bar=True)
 
     def configure_optimizers(self):
-        g_optimizer = optim.Adam(self.generator.parameters(), lr=self.hparams['lr'], betas=(0.5, 0.999))
-        d_optimizer = optim.Adam(self.discriminator.parameters(), lr=self.hparams['lr'], betas=(0.5, 0.999))
-        return [g_optimizer, d_optimizer], []
+        lr = self.hparams.lr
+        g_opt = optim.Adam(self.generator.parameters(), lr=lr)
+        d_opt = optim.Adam(self.discriminator.parameters(), lr=lr)
+        return [g_opt, d_opt]
 
-    def on_validation_epoch_end(self):
-        """Log generated images at the end of each validation epoch."""
-        z = torch.randn(8, self.hparams['latent_dim'], device=self.device)
-        fake_imgs = self(z).view(-1, 3, 32, 32)  # Reshape for grid
-        grid = torchvision.utils.make_grid(fake_imgs, nrow=4, normalize=True)
-        self.logger.experiment.log({
-            "Generated Images": [wandb.Image(grid, caption='Generated Images')]
-        })
