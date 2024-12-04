@@ -6,7 +6,7 @@ import torch.optim as optim
 from src.models.base_model import BaseModel
 from torch.autograd import Variable
 
-
+cuda = True if torch.cuda.is_available() else False
 Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 
 
