@@ -1,13 +1,19 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 import torch.optim as optim
 from src.models.base_model import BaseModel
+from torch.autograd import Variable
+
+
+Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 
 
 class Generator(nn.Module):
     def __init__(self, latent_dim):
         super(Generator, self).__init__()
+        self.latent_dim = latent_dim
         self.model = nn.Sequential(
             nn.Linear(latent_dim, 128),
             nn.LeakyReLU(0.2, inplace=True),
@@ -22,6 +28,7 @@ class Generator(nn.Module):
         )
 
     def forward(self, z):
+        z = Variable(Tensor(np.random.normal(0, 1, (z.shape[0], self.latent_dim))))
         img = self.model(z)
         img = img.view(img.size(0), 3, 32, 32)  # Reshape to image dimensions
         return img
