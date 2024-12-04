@@ -1,6 +1,5 @@
 import torch
 from matplotlib import pyplot as plt
-
 from src.visualization.base_visualizer import BaseVisualizer
 
 
@@ -18,20 +17,30 @@ class VAEVisualizer(BaseVisualizer):
             imgs = imgs.to(self.device)
             with torch.no_grad():
                 x_hat, _, _ = self.model(imgs)
-            sample_imgs.append(imgs[:num_samples].cpu())
-            reconstructions.append(x_hat[:num_samples].cpu())
+            sample_imgs = imgs[:num_samples].cpu()
+            reconstructions = x_hat[:num_samples].cpu()
             break  # Only visualize the first batch
 
-        # Stack images for visualization
-        sample_imgs = torch.cat(sample_imgs, dim=0)
-        reconstructions = torch.cat(reconstructions, dim=0)
+        # Ensure tensors have valid shapes for visualization
+        sample_imgs = sample_imgs.clamp(0, 1)  # Clamp values to [0, 1] range
+        reconstructions = reconstructions.clamp(0, 1)
 
         # Plot
         fig, axes = plt.subplots(2, num_samples, figsize=(15, 4))
         for i in range(num_samples):
-            axes[0, i].imshow(sample_imgs[i].permute(1, 2, 0).numpy())  # Permute for HWC format
+            # Original images
+            img = sample_imgs[i]
+            if img.dim() == 4:  # Ensure correct dimensionality
+                img = img.squeeze(0)
+            axes[0, i].imshow(img.permute(1, 2, 0).numpy())  # Convert to HWC
             axes[0, i].axis('off')
-            axes[1, i].imshow(reconstructions[i].permute(1, 2, 0).numpy())  # Permute for HWC format
+
+            # Reconstructed images
+            rec = reconstructions[i]
+            if rec.dim() == 4:  # Ensure correct dimensionality
+                rec = rec.squeeze(0)
+            axes[1, i].imshow(rec.permute(1, 2, 0).numpy())  # Convert to HWC
             axes[1, i].axis('off')
+
         plt.suptitle("Original Images (Top) vs Reconstructed Images (Bottom)", fontsize=16)
         plt.show()

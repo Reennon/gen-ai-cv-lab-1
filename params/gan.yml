@@ -1,0 +1,14 @@
+run_parameters:
+  experiment_name: "gan-100"
+hyperparameters:
+  lr: 2e-4  # Lower learning rate for stable GAN training
+  epochs: 50
+  latent_dim: 100  # Larger latent dimension for generator
+  scheduler:
+    type: None  # GAN training often doesn't use schedulers; adapt as needed
+    params: {}
+  optimizer:
+    type: Adam
+training:
+  accelerator: "gpu"
+  devices: 1

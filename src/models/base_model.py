@@ -25,7 +25,7 @@ class BaseModel(pl.LightningModule):
         current_lr = opt.param_groups[0]['lr']
         self.log('learning_rate', current_lr, on_step=False, on_epoch=True)
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch, batch_idx, optimizer_idx=None):
         # Implement the training logic
         x, y = batch
         y_hat = self.forward(x)
