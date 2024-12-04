@@ -3,6 +3,9 @@ import torch.nn as nn
 import pytorch_lightning as pl
 import torch.optim as optim
 
+from src.models.base_model import BaseModel
+
+
 class Generator(nn.Module):
     def __init__(self, latent_dim):
         super(Generator, self).__init__()
@@ -15,6 +18,7 @@ class Generator(nn.Module):
 
     def forward(self, z):
         return self.model(z).view(z.size(0), 1, 28, 28)
+
 
 class Discriminator(nn.Module):
     def __init__(self):
@@ -31,11 +35,11 @@ class Discriminator(nn.Module):
         return self.model(img_flat)
 
 
-class GAN(pl.LightningModule):
-    def __init__(self, latent_dim, lr):
-        super(GAN, self).__init__()
+class GAN(BaseModel):
+    def __init__(self, hparams):
+        super(GAN, self).__init__(hparams)
         self.save_hyperparameters()
-        self.generator = Generator(latent_dim)
+        self.generator = Generator(hparams["latent_dim"])
         self.discriminator = Discriminator()
         self.automatic_optimization = False
 
