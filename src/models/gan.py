@@ -1,10 +1,13 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import pytorch_lightning as pl
 import torch.optim as optim
+import torchvision
+import wandb
+
 from src.models.base_model import BaseModel
 from torch.autograd import Variable
+from pytorch_lightning.loggers import WandbLogger
 
 cuda = True if torch.cuda.is_available() else False
 Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
@@ -128,6 +131,29 @@ class GAN(BaseModel):
 
         return {'val_d_loss': d_loss, 'val_g_loss': g_loss}
 
+    def on_validation_epoch_end(self):
+        """
+        Hook to log generated and real images at the end of the validation epoch.
+        Logs real images and generated images as grids to Weights & Biases.
+        """
+        # Ensure the logger is an instance of WandbLogger
+        if isinstance(self.logger, WandbLogger):
+            # Generate a batch of random latent vectors
+            z = self.sample_latent(batch_size=16, device=self.device)  # Generate 16 random samples
+            generated_images = self.generator(z).detach().cpu()
+
+            # Select a few real images from the validation dataset
+            real_images = next(iter(self.val_dataloader()))[0][:16].cpu()  # Take the first 16 real images
+
+            # Create grids for visualization
+            real_grid = torchvision.utils.make_grid(real_images, nrow=4, normalize=True)
+            generated_grid = torchvision.utils.make_grid(generated_images, nrow=4, normalize=True)
+
+            # Log the images to W&B
+            self.logger.experiment.log({
+                "Real Images": [wandb.Image(real_grid, caption='Real Images')],
+                "Generated Images": [wandb.Image(generated_grid, caption='Generated Images')]
+            })
 
     def configure_optimizers(self):
         g_opt = optim.Adam(self.generator.parameters(), lr=self.hparams["lr"], betas=(0.5, 0.999))

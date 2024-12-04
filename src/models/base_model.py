@@ -4,7 +4,6 @@ import torch.nn as nn
 import torch.optim as optim
 import torchvision
 import wandb
-from pytorch_lightning import LightningModule
 from pytorch_lightning.loggers import WandbLogger
 
 
@@ -67,24 +66,29 @@ class BaseModel(pl.LightningModule):
 
     def on_validation_epoch_end(self):
         """
-        Hook to log generated and real images at the end of the validation epoch.
-        Logs real images and generated images as grids to Weights & Biases.
+        Hook to log reconstructed images at the end of the validation epoch.
+        Logs the original and reconstructed images as a grid to Weights & Biases.
         """
         # Ensure the logger is an instance of WandbLogger
         if isinstance(self.logger, WandbLogger):
-            # Generate a batch of random latent vectors
-            z = self.sample_latent(batch_size=16, device=self.device)  # Generate 16 random samples
-            generated_images = self.generator(z).detach().cpu()
+            # Select a few samples from the validation outputs
+            outputs = self.validation_outputs[:8]  # Take the first 8 batches
+            original_images, reconstructed_images = zip(*outputs)
 
-            # Select a few real images from the validation dataset
-            real_images = next(iter(self.val_dataloader()))[0][:16].cpu()  # Take the first 16 real images
+            # Combine images into a single tensor
+            original_images = torch.cat(original_images, dim=0)
+            reconstructed_images = torch.cat(reconstructed_images, dim=0)
 
-            # Create grids for visualization
-            real_grid = torchvision.utils.make_grid(real_images, nrow=4, normalize=True)
-            generated_grid = torchvision.utils.make_grid(generated_images, nrow=4, normalize=True)
+            # Create grids of original and reconstructed images
+            original_grid = torchvision.utils.make_grid(original_images.cpu(), nrow=4, normalize=True)
+            reconstructed_grid = torchvision.utils.make_grid(reconstructed_images.cpu(), nrow=4, normalize=True)
 
             # Log the images to W&B
             self.logger.experiment.log({
-                "Real Images": [wandb.Image(real_grid, caption='Real Images')],
-                "Generated Images": [wandb.Image(generated_grid, caption='Generated Images')]
+                "Original Images": [wandb.Image(original_grid, caption='Original Images')],
+                "Reconstructed Images": [wandb.Image(reconstructed_grid, caption='Reconstructed Images')]
             })
+
+        # Clear the stored validation outputs
+        self.validation_outputs.clear()
+
