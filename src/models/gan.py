@@ -67,6 +67,38 @@ class GAN(BaseModel):
     def forward(self, z):
         return self.generator(z)
 
+    def compute_lipschitz_penalty(self, real_imgs, fake_imgs, discriminator):
+        """
+        Compute Lipschitz Penalty for the discriminator.
+        """
+        batch_size = real_imgs.size(0)
+        device = real_imgs.device
+
+        # Randomly interpolate between real and fake images
+        alpha = torch.rand(batch_size, 1, 1, 1, device=device)
+        interpolates = alpha * real_imgs + (1 - alpha) * fake_imgs
+        interpolates.requires_grad_(True)
+
+        # Get discriminator outputs for interpolated images
+        interpolates_preds = discriminator(interpolates)
+
+        # Compute gradients with respect to interpolated images
+        gradients = torch.autograd.grad(
+            outputs=interpolates_preds,
+            inputs=interpolates,
+            grad_outputs=torch.ones_like(interpolates_preds),
+            create_graph=True,
+            retain_graph=True,
+            only_inputs=True,
+        )[0]
+
+        # Compute gradient norm
+        gradient_norm = gradients.view(gradients.size(0), -1).norm(2, dim=1)
+
+        # Compute Lipschitz penalty
+        lipschitz_penalty = ((gradient_norm - 1) ** 2).mean()
+        return lipschitz_penalty
+
     def training_step(self, batch, batch_idx):
         real_imgs, _ = batch
         batch_size = real_imgs.size(0)
@@ -74,6 +106,7 @@ class GAN(BaseModel):
 
         # Sample latent noise vector
         z = self.sample_latent(batch_size, device)
+        fake_imgs = self.generator(z).detach()
 
         # Get optimizers
         g_opt, d_opt = self.optimizers()
@@ -81,12 +114,24 @@ class GAN(BaseModel):
         # Train Discriminator
         self.toggle_optimizer(d_opt)
         d_opt.zero_grad()
+
+        # Real and fake predictions
         real_preds = self.discriminator(real_imgs)
-        real_loss = nn.BCELoss()(real_preds, torch.ones_like(real_preds))
-        fake_imgs = self(z).detach()
         fake_preds = self.discriminator(fake_imgs)
+
+        # Discriminator loss
+        real_loss = nn.BCELoss()(real_preds, torch.ones_like(real_preds))
         fake_loss = nn.BCELoss()(fake_preds, torch.zeros_like(fake_preds))
         d_loss = (real_loss + fake_loss) / 2
+
+        # Compute Lipschitz penalty
+        lipschitz_penalty = self.compute_lipschitz_penalty(real_imgs, fake_imgs, self.discriminator)
+
+        # Add Lipschitz penalty to discriminator loss
+        lambda_lp = self.hparams.get("lambda_lp", 10)  # Regularization coefficient
+        d_loss += lambda_lp * lipschitz_penalty
+
+        # Backpropagation
         self.manual_backward(d_loss)
         d_opt.step()
         self.untoggle_optimizer(d_opt)
@@ -94,7 +139,7 @@ class GAN(BaseModel):
         # Train Generator
         self.toggle_optimizer(g_opt)
         g_opt.zero_grad()
-        fake_imgs = self(z)
+        fake_imgs = self.generator(z)
         fake_preds = self.discriminator(fake_imgs)
         g_loss = nn.BCELoss()(fake_preds, torch.ones_like(fake_preds))
         self.manual_backward(g_loss)
@@ -104,6 +149,7 @@ class GAN(BaseModel):
         # Logging
         self.log('d_loss', d_loss, prog_bar=True)
         self.log('g_loss', g_loss, prog_bar=True)
+        self.log('lipschitz_penalty', lipschitz_penalty, prog_bar=True)
 
     def validation_step(self, batch, batch_idx):
         real_imgs, _ = batch
