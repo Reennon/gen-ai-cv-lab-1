@@ -46,6 +46,7 @@ class Discriminator(nn.Module):
 class GAN(BaseModel):
     def __init__(self, hparams):
         super(GAN, self).__init__(hparams)
+        self.save_hyperparameters(hparams)
         self.latent_dim = hparams["latent_dim"]  # Store latent_dim as an attribute
         print(f"Initialized latent_dim: {self.latent_dim}")
         self.generator = Generator(self.latent_dim)
@@ -90,6 +91,6 @@ class GAN(BaseModel):
         self.log('g_loss', g_loss, prog_bar=True)
 
     def configure_optimizers(self):
-        g_opt = optim.Adam(self.generator.parameters(), lr=self.lr, betas=(0.5, 0.999))
-        d_opt = optim.Adam(self.discriminator.parameters(), lr=self.lr, betas=(0.5, 0.999))
+        g_opt = optim.Adam(self.generator.parameters(), lr=self.hparams.lr, betas=(0.5, 0.999))
+        d_opt = optim.Adam(self.discriminator.parameters(), lr=self.hparams.lr, betas=(0.5, 0.999))
         return [g_opt, d_opt]
