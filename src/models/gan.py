@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 import torch.optim as optim
-
 from src.models.base_model import BaseModel
 
 
@@ -38,10 +37,9 @@ class Discriminator(nn.Module):
 class GAN(BaseModel):
     def __init__(self, hparams):
         super(GAN, self).__init__(hparams)
-        self.save_hyperparameters()
         self.generator = Generator(hparams["latent_dim"])
         self.discriminator = Discriminator()
-        self.automatic_optimization = False
+        self.automatic_optimization = False  # Disable automatic optimization
 
     def forward(self, z):
         return self.generator(z)
@@ -49,7 +47,7 @@ class GAN(BaseModel):
     def training_step(self, batch, batch_idx):
         real_imgs, _ = batch
         batch_size = real_imgs.size(0)
-        z = torch.randn(batch_size, self.hparams.latent_dim, device=self.device)
+        z = torch.randn(batch_size, self.hparams["latent_dim"], device=self.device)
 
         # Train Discriminator
         d_opt = self.optimizers()[1]
@@ -77,8 +75,7 @@ class GAN(BaseModel):
         self.log('g_loss', g_loss, prog_bar=True)
 
     def configure_optimizers(self):
-        lr = self.hparams.lr
-        g_opt = optim.Adam(self.generator.parameters(), lr=lr)
-        d_opt = optim.Adam(self.discriminator.parameters(), lr=lr)
+        lr = self.hparams["lr"]
+        g_opt = optim.Adam(self.generator.parameters(), lr=lr, betas=(0.5, 0.999))
+        d_opt = optim.Adam(self.discriminator.parameters(), lr=lr, betas=(0.5, 0.999))
         return [g_opt, d_opt]
-
