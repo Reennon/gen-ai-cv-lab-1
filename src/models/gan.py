@@ -72,8 +72,8 @@ class GAN(BaseModel):
         batch_size = real_imgs.size(0)
         device = real_imgs.device
 
-        # Sample random noise for the generator
-        z = torch.randn(batch_size, self.hparams["latent_dim"], device=device)
+        # Sample latent noise vector
+        z = self.sample_latent(batch_size, device)
 
         # Get optimizers
         g_opt, d_opt = self.optimizers()
@@ -111,21 +111,23 @@ class GAN(BaseModel):
         device = real_imgs.device
 
         # Generate fake images
-        z = torch.randn(batch_size, self.hparams["latent_dim"], device=device)
-        fake_imgs = self(z)
+        z = self.sample_latent(batch_size, device)
+        generated_imgs = self.generator(z)
 
-        # Discriminator predictions
+        # Calculate losses (if needed)
         real_preds = self.discriminator(real_imgs)
-        fake_preds = self.discriminator(fake_imgs)
-
-        # Calculate validation losses
+        fake_preds = self.discriminator(generated_imgs)
         real_loss = nn.BCELoss()(real_preds, torch.ones_like(real_preds))
         fake_loss = nn.BCELoss()(fake_preds, torch.zeros_like(fake_preds))
         d_loss = (real_loss + fake_loss) / 2
-
         g_loss = nn.BCELoss()(fake_preds, torch.ones_like(fake_preds))
 
-        # Logging
+        # Append real and generated images to outputs
+        if not hasattr(self, 'validation_outputs'):
+            self.validation_outputs = []
+        self.validation_outputs.append((real_imgs, generated_imgs))
+
+        # Log losses
         self.log('val_d_loss', d_loss, prog_bar=True)
         self.log('val_g_loss', g_loss, prog_bar=True)
 
@@ -141,22 +143,26 @@ class GAN(BaseModel):
         """
         # Ensure the logger is an instance of WandbLogger
         if isinstance(self.logger, WandbLogger):
-            # Generate a batch of random latent vectors
-            z = self.sample_latent(batch_size=16, device=self.device)  # Generate 16 random samples
-            generated_images = self.generator(z).detach().cpu()
+            # Retrieve a few samples from the validation outputs
+            outputs = self.validation_outputs[:8]  # Take the first 8 outputs
+            real_images, generated_images = zip(*outputs)
 
-            # Select a few real images from the validation dataset
-            real_images = next(iter(self.val_dataloader()))[0][:16].cpu()  # Take the first 16 real images
+            # Combine images into single tensors
+            real_images = torch.cat(real_images, dim=0)
+            generated_images = torch.cat(generated_images, dim=0)
 
             # Create grids for visualization
-            real_grid = torchvision.utils.make_grid(real_images, nrow=4, normalize=True)
-            generated_grid = torchvision.utils.make_grid(generated_images, nrow=4, normalize=True)
+            real_grid = torchvision.utils.make_grid(real_images.cpu(), nrow=4, normalize=True)
+            generated_grid = torchvision.utils.make_grid(generated_images.cpu(), nrow=4, normalize=True)
 
             # Log the images to W&B
             self.logger.experiment.log({
                 "Real Images": [wandb.Image(real_grid, caption='Real Images')],
                 "Generated Images": [wandb.Image(generated_grid, caption='Generated Images')]
             })
+
+        # Clear the stored validation outputs
+        self.validation_outputs.clear()
 
     def configure_optimizers(self):
         g_opt = optim.Adam(self.generator.parameters(), lr=self.hparams["lr"], betas=(0.5, 0.999))
