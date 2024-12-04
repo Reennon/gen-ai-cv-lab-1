@@ -102,6 +102,17 @@ class GAN(BaseModel):
         self.log('d_loss', d_loss, prog_bar=True)
         self.log('g_loss', g_loss, prog_bar=True)
 
+
+    def validation_step(self, batch, batch_idx):
+        # Implement the validation logic
+        x, y = batch
+        y_hat = self.forward(x)
+        val_loss = nn.functional.mse_loss(y_hat, y.unsqueeze(1).repeat(1, 3, 32, 32))  # Example fix
+        self.log('val_loss', val_loss)
+
+        return val_loss
+
+
     def configure_optimizers(self):
         g_opt = optim.Adam(self.generator.parameters(), lr=self.hparams["lr"], betas=(0.5, 0.999))
         d_opt = optim.Adam(self.discriminator.parameters(), lr=self.hparams["lr"], betas=(0.5, 0.999))
