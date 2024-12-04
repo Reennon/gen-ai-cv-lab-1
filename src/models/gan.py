@@ -8,111 +8,85 @@ from src.models.base_model import BaseModel
 class Generator(nn.Module):
     def __init__(self, latent_dim):
         super(Generator, self).__init__()
-        self.latent_dim = latent_dim
-
-        # Fully connected to project latent vector to a starting size
-        self.fc = nn.Sequential(
-            nn.Linear(latent_dim, 256 * 8 * 8),  # Project to 256 feature maps of size 8x8
-            nn.ReLU()
-        )
-
-        # Transposed convolutions to upscale to 3x32x32
-        self.upscale = nn.Sequential(
-            nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1),  # 8x8 -> 16x16
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-
-            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),  # 16x16 -> 32x32
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-
-            nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1),  # 32x32 -> 3x32x32
-            nn.Tanh()  # Output scaled to [-1, 1]
+        self.model = nn.Sequential(
+            nn.Linear(latent_dim, 128),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(128, 256),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(256, 512),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(512, 1024),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(1024, 3 * 32 * 32),  # CIFAR-10 output dimensions
+            nn.Tanh()  # Scale output to [-1, 1]
         )
 
     def forward(self, z):
-        # Ensure input is the correct shape
-        assert z.shape[1] == self.latent_dim, f"Expected latent vector shape: [batch_size, {self.latent_dim}]"
-        print(f"Input shape to Generator: {z.shape}")  # [batch_size, latent_dim]
-
-        # Fully connected layer
-        out = self.fc(z)  # Shape: [batch_size, 256 * 8 * 8]
-        out = out.view(out.size(0), 256, 8, 8)  # Reshape to [batch_size, 256, 8, 8]
-        print(f"Shape after fc and reshape: {out.shape}")
-
-        # Upscale to target image size
-        img = self.upscale(out)  # Shape: [batch_size, 3, 32, 32]
-        print(f"Output shape from Generator: {img.shape}")
+        img = self.model(z)
+        img = img.view(img.size(0), 3, 32, 32)  # Reshape to image dimensions
         return img
+
 
 
 class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
         self.model = nn.Sequential(
-            nn.Linear(3 * 32 * 32, 128),  # Match CIFAR-10 input dimensions
-            nn.LeakyReLU(0.2),
-            nn.Linear(128, 1),
-            nn.Sigmoid()
+            nn.Linear(3 * 32 * 32, 512),  # Flatten CIFAR-10 input
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(512, 256),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(256, 1),
+            nn.Sigmoid()  # Output probability
         )
 
     def forward(self, img):
-        print(f"Input shape to Discriminator: {img.shape}")  # Should be [batch_size, 3, 32, 32]
-        img_flat = img.view(img.size(0), -1)
-        print(f"Input shape to Discriminator after flatten: {img_flat.shape}")  # Should be [batch_size, 3*32*32]
-        out = self.model(img_flat)
-        print(f"Output from Discriminator: {out.shape}")  # Should be [batch_size, 1]
-        return out
+        img_flat = img.view(img.size(0), -1)  # Flatten the input image
+        validity = self.model(img_flat)
+        return validity
 
 
-class GAN(BaseModel):
-    def __init__(self, hparams):
-        super(GAN, self).__init__(hparams)
-        self.save_hyperparameters(hparams)
-        self.latent_dim = hparams["latent_dim"]  # Store latent_dim as an attribute
-        print(f"Initialized latent_dim: {self.latent_dim}")
-        self.generator = Generator(self.latent_dim)
+
+class GAN(pl.LightningModule):
+    def __init__(self, latent_dim, lr=0.0002):
+        super(GAN, self).__init__()
+        self.latent_dim = latent_dim
+        self.generator = Generator(latent_dim)
         self.discriminator = Discriminator()
-        self.automatic_optimization = False
+        self.lr = lr
 
     def forward(self, z):
         return self.generator(z)
 
-    def training_step(self, batch, batch_idx):
-        print(f"Using latent_dim in training_step: {self.latent_dim}")
+    def training_step(self, batch, batch_idx, optimizer_idx):
         real_imgs, _ = batch
-        print(f"Shape of real_imgs: {real_imgs.shape}")
+
+        # Sample random noise for the generator
         batch_size = real_imgs.size(0)
-        z = torch.randn(batch_size, self.latent_dim, device=self.device)  # Use self.latent_dim
-        print(f"Shape of z: {z.shape}")
+        z = torch.randn(batch_size, self.latent_dim, device=self.device)
 
-        # Train Discriminator
-        d_opt = self.optimizers()[1]
-        d_opt.zero_grad()
-        real_preds = self.discriminator(real_imgs)
-        real_loss = nn.BCELoss()(real_preds, torch.ones_like(real_preds))
-        fake_imgs = self(z).detach()
-        print(f"Shape of fake_imgs: {fake_imgs.shape}")
-        fake_preds = self.discriminator(fake_imgs)
-        fake_loss = nn.BCELoss()(fake_preds, torch.zeros_like(fake_preds))
-        d_loss = (real_loss + fake_loss) / 2
-        self.manual_backward(d_loss)
-        d_opt.step()
+        # Generator step
+        if optimizer_idx == 0:
+            fake_imgs = self(z)
+            fake_preds = self.discriminator(fake_imgs)
+            g_loss = nn.BCELoss()(fake_preds, torch.ones_like(fake_preds))
+            self.log('g_loss', g_loss, prog_bar=True)
+            return g_loss
 
-        # Train Generator
-        g_opt = self.optimizers()[0]
-        g_opt.zero_grad()
-        fake_imgs = self(z)
-        fake_preds = self.discriminator(fake_imgs)
-        g_loss = nn.BCELoss()(fake_preds, torch.ones_like(fake_preds))
-        self.manual_backward(g_loss)
-        g_opt.step()
+        # Discriminator step
+        if optimizer_idx == 1:
+            real_preds = self.discriminator(real_imgs)
+            real_loss = nn.BCELoss()(real_preds, torch.ones_like(real_preds))
 
-        # Logging
-        self.log('d_loss', d_loss, prog_bar=True)
-        self.log('g_loss', g_loss, prog_bar=True)
+            fake_imgs = self(z).detach()
+            fake_preds = self.discriminator(fake_imgs)
+            fake_loss = nn.BCELoss()(fake_preds, torch.zeros_like(fake_preds))
+
+            d_loss = (real_loss + fake_loss) / 2
+            self.log('d_loss', d_loss, prog_bar=True)
+            return d_loss
 
     def configure_optimizers(self):
-        g_opt = optim.Adam(self.generator.parameters(), lr=self.hparams.lr, betas=(0.5, 0.999))
-        d_opt = optim.Adam(self.discriminator.parameters(), lr=self.hparams.lr, betas=(0.5, 0.999))
-        return [g_opt, d_opt]
+        g_opt = optim.Adam(self.generator.parameters(), lr=self.lr, betas=(0.5, 0.999))
+        d_opt = optim.Adam(self.discriminator.parameters(), lr=self.lr, betas=(0.5, 0.999))
+        return [g_opt, d_opt], []
