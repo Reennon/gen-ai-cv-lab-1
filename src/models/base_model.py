@@ -19,10 +19,16 @@ class BaseModel(pl.LightningModule):
         pass
 
     def on_train_epoch_start(self):
-        # Log learning rate
-        opt = self.optimizers()
-        current_lr = opt.param_groups[0]['lr']
-        self.log('learning_rate', current_lr, on_step=False, on_epoch=True)
+        """
+        Hook to log the learning rates of all optimizers at the start of each training epoch.
+        """
+        # Get the optimizers
+        optimizers = self.optimizers()
+
+        # Log the learning rates for each optimizer
+        for idx, opt in enumerate(optimizers):
+            current_lr = opt.param_groups[0]['lr']
+            self.log(f'learning_rate_optimizer_{idx}', current_lr, on_step=False, on_epoch=True)
 
     def training_step(self, batch, batch_idx):
         # Implement the training logic
