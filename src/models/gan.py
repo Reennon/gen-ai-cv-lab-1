@@ -131,6 +131,9 @@ class GAN(BaseModel):
 
         return {'val_d_loss': d_loss, 'val_g_loss': g_loss}
 
+    def sample_latent(self, batch_size, device):
+        return torch.randn(batch_size, self.hparams["latent_dim"], device=device)
+
     def on_validation_epoch_end(self):
         """
         Hook to log generated and real images at the end of the validation epoch.
