@@ -127,11 +127,14 @@ class GAN(BaseModel):
             self.validation_outputs = []
         self.validation_outputs.append((real_imgs, generated_imgs))
 
+        val_loss = d_loss + g_loss
+        self.log('val_loss', val_loss, prog_bar=True)
+
         # Log losses
         self.log('val_d_loss', d_loss, prog_bar=True)
         self.log('val_g_loss', g_loss, prog_bar=True)
 
-        return {'val_d_loss': d_loss, 'val_g_loss': g_loss}
+        return {'val_loss': val_loss, 'val_d_loss': d_loss, 'val_g_loss': g_loss}
 
     def sample_latent(self, batch_size, device):
         return torch.randn(batch_size, self.hparams["latent_dim"], device=device)
