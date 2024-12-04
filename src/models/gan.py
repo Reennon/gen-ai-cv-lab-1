@@ -11,26 +11,26 @@ class Generator(nn.Module):
         self.model = nn.Sequential(
             nn.Linear(latent_dim, 128),
             nn.ReLU(),
-            nn.Linear(128, 784),
-            nn.Tanh()
+            nn.Linear(128, 3 * 32 * 32),  # Adjust output size for CIFAR-10
+            nn.Tanh()  # Output scaled to [-1, 1]
         )
 
     def forward(self, z):
-        return self.model(z).view(z.size(0), 1, 28, 28)
+        return self.model(z).view(z.size(0), 3, 32, 32)  # Reshape to image dimensions
 
 
 class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
         self.model = nn.Sequential(
-            nn.Linear(784, 128),
+            nn.Linear(3 * 32 * 32, 128),  # Update input size for CIFAR-10 (3 channels, 32x32)
             nn.LeakyReLU(0.2),
             nn.Linear(128, 1),
             nn.Sigmoid()
         )
 
     def forward(self, img):
-        img_flat = img.view(img.size(0), -1)
+        img_flat = img.view(img.size(0), -1)  # Flatten the image
         return self.model(img_flat)
 
 
