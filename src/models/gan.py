@@ -102,15 +102,31 @@ class GAN(BaseModel):
         self.log('d_loss', d_loss, prog_bar=True)
         self.log('g_loss', g_loss, prog_bar=True)
 
-
     def validation_step(self, batch, batch_idx):
-        # Implement the validation logic
-        x, y = batch
-        y_hat = self.forward(x)
-        val_loss = nn.functional.mse_loss(y_hat, y.unsqueeze(1).repeat(1, 3, 32, 32))  # Example fix
-        self.log('val_loss', val_loss)
+        real_imgs, _ = batch
+        batch_size = real_imgs.size(0)
+        device = real_imgs.device
 
-        return val_loss
+        # Generate fake images
+        z = torch.randn(batch_size, self.hparams["latent_dim"], device=device)
+        fake_imgs = self(z)
+
+        # Discriminator predictions
+        real_preds = self.discriminator(real_imgs)
+        fake_preds = self.discriminator(fake_imgs)
+
+        # Calculate validation losses
+        real_loss = nn.BCELoss()(real_preds, torch.ones_like(real_preds))
+        fake_loss = nn.BCELoss()(fake_preds, torch.zeros_like(fake_preds))
+        d_loss = (real_loss + fake_loss) / 2
+
+        g_loss = nn.BCELoss()(fake_preds, torch.ones_like(fake_preds))
+
+        # Logging
+        self.log('val_d_loss', d_loss, prog_bar=True)
+        self.log('val_g_loss', g_loss, prog_bar=True)
+
+        return {'val_d_loss': d_loss, 'val_g_loss': g_loss}
 
 
     def configure_optimizers(self):
