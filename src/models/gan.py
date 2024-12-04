@@ -16,7 +16,12 @@ class Generator(nn.Module):
         )
 
     def forward(self, z):
-        return self.model(z).view(z.size(0), 3, 32, 32)  # Reshape to (batch_size, 3, 32, 32)
+        print(f"Input shape to Generator: {z.shape}")  # Should be [batch_size, latent_dim]
+        out = self.model(z)
+        print(f"Output shape from Generator before reshape: {out.shape}")  # Should be [batch_size, 3*32*32]
+        img = out.view(z.size(0), 3, 32, 32)
+        print(f"Output shape from Generator after reshape: {img.shape}")  # Should be [batch_size, 3, 32, 32]
+        return img
 
 
 class Discriminator(nn.Module):
@@ -30,26 +35,33 @@ class Discriminator(nn.Module):
         )
 
     def forward(self, img):
-        img_flat = img.view(img.size(0), -1)  # Flatten image to (batch_size, 3 * 32 * 32)
-        return self.model(img_flat)
+        print(f"Input shape to Discriminator: {img.shape}")  # Should be [batch_size, 3, 32, 32]
+        img_flat = img.view(img.size(0), -1)
+        print(f"Input shape to Discriminator after flatten: {img_flat.shape}")  # Should be [batch_size, 3*32*32]
+        out = self.model(img_flat)
+        print(f"Output from Discriminator: {out.shape}")  # Should be [batch_size, 1]
+        return out
 
 
 class GAN(BaseModel):
     def __init__(self, hparams):
         super(GAN, self).__init__(hparams)
-        self.lr = hparams["lr"]
-        self.latent_dim = hparams["latent_dim"]
+        self.latent_dim = hparams["latent_dim"]  # Store latent_dim as an attribute
+        print(f"Initialized latent_dim: {self.latent_dim}")
         self.generator = Generator(self.latent_dim)
         self.discriminator = Discriminator()
-        self.automatic_optimization = False  # Disable automatic optimization
+        self.automatic_optimization = False
 
     def forward(self, z):
         return self.generator(z)
 
     def training_step(self, batch, batch_idx):
+        print(f"Using latent_dim in training_step: {self.latent_dim}")
         real_imgs, _ = batch
+        print(f"Shape of real_imgs: {real_imgs.shape}")
         batch_size = real_imgs.size(0)
-        z = torch.randn(batch_size, self.latent_dim, device=self.device)
+        z = torch.randn(batch_size, self.latent_dim, device=self.device)  # Use self.latent_dim
+        print(f"Shape of z: {z.shape}")
 
         # Train Discriminator
         d_opt = self.optimizers()[1]
@@ -57,6 +69,7 @@ class GAN(BaseModel):
         real_preds = self.discriminator(real_imgs)
         real_loss = nn.BCELoss()(real_preds, torch.ones_like(real_preds))
         fake_imgs = self(z).detach()
+        print(f"Shape of fake_imgs: {fake_imgs.shape}")
         fake_preds = self.discriminator(fake_imgs)
         fake_loss = nn.BCELoss()(fake_preds, torch.zeros_like(fake_preds))
         d_loss = (real_loss + fake_loss) / 2
