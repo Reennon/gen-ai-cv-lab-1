@@ -171,7 +171,7 @@ class GAN(BaseModel):
         # Append real and generated images to outputs
         if not hasattr(self, 'validation_outputs'):
             self.validation_outputs = []
-        self.validation_outputs.append((real_imgs, generated_imgs))
+        self.validation_outputs.append((real_imgs[:10], generated_imgs[:10]))
 
         val_loss = d_loss + g_loss
         self.log('val_loss', val_loss, prog_bar=True)
