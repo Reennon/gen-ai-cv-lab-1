@@ -123,12 +123,28 @@ class GANWithFlow(BaseModel):
         batch_size = real_imgs.size(0)
         device = real_imgs.device
 
-        # Generate fake images
+        # Sample noise
         z = torch.randn(batch_size, self.hparams['latent_dim'], device=device)
+
+        # Generate fake images
         fake_imgs = self(z)
 
-        # Store outputs for logging
+        # Discriminator predictions
+        real_preds = self.discriminator(real_imgs)
+        fake_preds = self.discriminator(fake_imgs)
+
+        # Compute validation loss (Discriminator loss as example)
+        real_loss = nn.BCELoss()(real_preds, torch.ones_like(real_preds))
+        fake_loss = nn.BCELoss()(fake_preds, torch.zeros_like(fake_preds))
+        val_loss = (real_loss + fake_loss) / 2
+
+        # Log validation loss
+        self.log('val_loss', val_loss, prog_bar=True)
+
+        # Store outputs for image logging
         self.validation_outputs.append((real_imgs, fake_imgs))
+
+        return val_loss
 
     def on_validation_epoch_end(self):
         """
