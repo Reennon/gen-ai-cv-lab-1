@@ -17,43 +17,63 @@ class Generator(nn.Module):
     def __init__(self, latent_dim):
         super(Generator, self).__init__()
         self.latent_dim = latent_dim
-        self.model = nn.Sequential(
-            nn.Linear(latent_dim, 128),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(128, 256),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(256, 512),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(512, 1024),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(1024, 3 * 32 * 32),  # CIFAR-10 output dimensions
-            nn.Tanh()  # Scale output to [-1, 1]
+
+        self.initial = nn.Sequential(
+            nn.Linear(latent_dim, 8 * 8 * 256),
+            nn.ReLU(True),
+            nn.Unflatten(1, (256, 8, 8))  # Reshape to (256, 8, 8)
+        )
+
+        self.upsample_blocks = nn.Sequential(
+            nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1),  # (128, 16, 16)
+            nn.BatchNorm2d(128),
+            nn.ReLU(True),
+
+            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),  # (64, 32, 32)
+            nn.BatchNorm2d(64),
+            nn.ReLU(True),
+
+            nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1),  # (3, 32, 32)
+            nn.Tanh()  # Scale to [-1, 1]
         )
 
     def forward(self, z):
-        z = Variable(Tensor(np.random.normal(0, 1, (z.shape[0], self.latent_dim))))
-        img = self.model(z)
-        img = img.view(img.size(0), 3, 32, 32)  # Reshape to image dimensions
+        x = self.initial(z)
+        img = self.upsample_blocks(x)
         return img
+
 
 
 
 class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
-        self.model = nn.Sequential(
-            nn.Linear(3 * 32 * 32, 512),  # Flatten CIFAR-10 input
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(512, 256),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(256, 1),
-            nn.Sigmoid()  # Output probability
+
+        self.conv_blocks = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=4, stride=2, padding=1),  # (64, 16, 16)
+            nn.LeakyReLU(0.2, True),
+
+            nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),  # (128, 8, 8)
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.2, True),
+
+            nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1),  # (256, 4, 4)
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.2, True),
+        )
+
+        self.flatten = nn.Flatten()
+        self.fc = nn.Sequential(
+            nn.Linear(256 * 4 * 4, 1),  # Binary classification
+            nn.Sigmoid()
         )
 
     def forward(self, img):
-        img_flat = img.view(img.size(0), -1)  # Flatten the input image
-        validity = self.model(img_flat)
+        features = self.conv_blocks(img)
+        flat_features = self.flatten(features)
+        validity = self.fc(flat_features)
         return validity
+
 
 
 
