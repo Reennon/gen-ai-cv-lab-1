@@ -1,8 +1,12 @@
 import torch
 import torch.nn as nn
+import torchvision
+import wandb
+from pytorch_lightning.loggers import WandbLogger
 from torch import optim
 import pytorch_lightning as pl
 
+from src.models.base_model import BaseModel
 from src.models.gan import Generator, Discriminator
 
 
@@ -56,28 +60,33 @@ class NormalizingFlow(nn.Module):
         return z
 
 
-class GANWithFlow(pl.LightningModule):
+class GANWithFlow(BaseModel):
     def __init__(self, hparams):
-        super(GANWithFlow, self).__init__()
-        self.save_hyperparameters(hparams)
+        super(GANWithFlow, self).__init__(hparams)
 
         # Components
         self.generator = Generator(self.hparams['latent_dim'])
         self.discriminator = Discriminator()
-        self.norm_flow = NormalizingFlow(self.hparams['latent_dim'], num_layers=5)
+        self.norm_flow = NormalizingFlow(self.hparams['latent_dim'], self.hparams['flow']['num_layers'])
 
+        # Learning rate
         self.lr = self.hparams['lr']
-        self.automatic_optimization = False  # Manual optimization
+        self.automatic_optimization = False  # Manual optimization for multiple optimizers
+
+        # Validation storage for logging images
+        self.validation_outputs = []
 
     def forward(self, z):
-        # Apply normalizing flow on latent space
-        z, _ = self.norm_flow(z)
+        z, _ = self.norm_flow(z)  # Transform latent vector using normalizing flow
         return self.generator(z)
 
     def training_step(self, batch, batch_idx):
         real_imgs, _ = batch
         batch_size = real_imgs.size(0)
-        z = torch.randn(batch_size, self.hparams['latent_dim'], device=self.device)
+        device = real_imgs.device
+
+        # Sample noise
+        z = torch.randn(batch_size, self.hparams['latent_dim'], device=device)
 
         # Get optimizers
         g_opt, d_opt = self.optimizers()
@@ -105,9 +114,47 @@ class GANWithFlow(pl.LightningModule):
         g_opt.step()
         self.untoggle_optimizer(g_opt)
 
-        # Logging
-        self.log('d_loss', d_loss, prog_bar=True)
-        self.log('g_loss', g_loss, prog_bar=True)
+        # Log metrics
+        self.log('train/d_loss', d_loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log('train/g_loss', g_loss, on_step=True, on_epoch=True, prog_bar=True)
+
+    def validation_step(self, batch, batch_idx):
+        real_imgs, _ = batch
+        batch_size = real_imgs.size(0)
+        device = real_imgs.device
+
+        # Generate fake images
+        z = torch.randn(batch_size, self.hparams['latent_dim'], device=device)
+        fake_imgs = self(z)
+
+        # Store outputs for logging
+        self.validation_outputs.append((real_imgs, fake_imgs))
+
+    def on_validation_epoch_end(self):
+        """
+        Hook to log generated images at the end of the validation epoch.
+        """
+        if isinstance(self.logger, WandbLogger):
+            # Select a few samples from the validation outputs
+            outputs = self.validation_outputs[:8]  # Take the first 8 batches
+            real_images, fake_images = zip(*outputs)
+
+            # Combine images into a single tensor
+            real_images = torch.cat(real_images, dim=0)
+            fake_images = torch.cat(fake_images, dim=0)
+
+            # Create grids of real and generated images
+            real_grid = torchvision.utils.make_grid(real_images.cpu(), nrow=4, normalize=True)
+            fake_grid = torchvision.utils.make_grid(fake_images.cpu(), nrow=4, normalize=True)
+
+            # Log the images to W&B
+            self.logger.experiment.log({
+                "Real Images": [wandb.Image(real_grid, caption='Real Images')],
+                "Generated Images": [wandb.Image(fake_grid, caption='Generated Images')]
+            })
+
+        # Clear the stored validation outputs
+        self.validation_outputs.clear()
 
     def configure_optimizers(self):
         g_opt = optim.Adam(list(self.generator.parameters()) + list(self.norm_flow.parameters()),
