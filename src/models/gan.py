@@ -19,7 +19,7 @@ class Generator(nn.Module):
         self.latent_dim = latent_dim
 
         self.initial = nn.Sequential(
-            nn.Linear(latent_dim, 8 * 8 * 256),
+            nn.Linear(latent_dim, 8 * 8 * 512),
             nn.ReLU(True),
             nn.Unflatten(1, (512, 8, 8))  # Reshape to (512, 8, 8)
         )
