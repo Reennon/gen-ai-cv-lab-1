@@ -21,19 +21,19 @@ class Generator(nn.Module):
         self.initial = nn.Sequential(
             nn.Linear(latent_dim, 8 * 8 * 256),
             nn.ReLU(True),
-            nn.Unflatten(1, (256, 8, 8))  # Reshape to (256, 8, 8)
+            nn.Unflatten(1, (512, 8, 8))  # Reshape to (512, 8, 8)
         )
 
         self.upsample_blocks = nn.Sequential(
-            nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1),  # (128, 16, 16)
+            nn.ConvTranspose2d(512, 128, kernel_size=4, stride=2, padding=1),  # (128, 16, 16)
             nn.BatchNorm2d(128),
             nn.ReLU(True),
 
-            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),  # (64, 32, 32)
+            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),  # (128, 32, 32)
             nn.BatchNorm2d(64),
             nn.ReLU(True),
 
-            nn.Conv2d(64, 3, kernel_size=3, stride=1, padding=1),  # (3, 32, 32)
+            nn.ConvTranspose2d(64, 3, kernel_size=3, stride=1, padding=1),  # (3, 32, 32)
             nn.Tanh()  # Scale to [-1, 1]
         )
 
